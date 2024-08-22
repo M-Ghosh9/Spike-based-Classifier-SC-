@@ -9,11 +9,11 @@ from sklearn.preprocessing import LabelEncoder
 import os
 import matplotlib.pyplot as plt
 
-# Model Definition (unchanged)
+# Model Definition with updated dropout probability
 class BasicBlock1D(nn.Module):
     expansion = 1
 
-    def __init__(self, in_planes, planes, stride=1, dropout_prob=0.5):
+    def __init__(self, in_planes, planes, stride=1, dropout_prob=0.6):  # Updated dropout_prob to 0.6
         super(BasicBlock1D, self).__init__()
         self.conv1 = nn.Conv1d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm1d(planes)
@@ -182,7 +182,7 @@ if __name__ == "__main__":
         print("Initializing model, criterion, and optimizer...")
         model = ResNet18_1D(num_classes=len(np.unique(encoded_labels.cpu().numpy()))).to(device)
         criterion = nn.CrossEntropyLoss(weight=class_weights)
-        optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)  # Added weight decay
+        optimizer = optim.Adam(model.parameters(), lr=0.00005, weight_decay=1e-4)  # Lowered learning rate
 
         # Learning rate scheduler
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.7)
@@ -191,7 +191,7 @@ if __name__ == "__main__":
         start_epoch, best_val_accuracy = load_checkpoint('checkpoint_best.pth', model, optimizer)
         
         # Training loop
-        num_epochs = 500
+        num_epochs = 5000
         train_losses = []
         val_losses = []
         train_accuracies = []
@@ -257,4 +257,3 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"An error occurred: {e}")
-
