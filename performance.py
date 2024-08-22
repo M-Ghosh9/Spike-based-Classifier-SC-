@@ -1,44 +1,24 @@
 #performance.py
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report, f1_score, precision_recall_curve, auc
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import logging
+import gc
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, top_k_accuracy_score
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import DataLoader, TensorDataset
-from model import ResNet18_1D  
+from model import ResNet18_1D
+from matplotlib.backends.backend_pdf import PdfPages
 
-def plot_performance_metrics(true_labels, predicted_labels, label_encoder, save_path='performance_metrics.png'):
-    # Confusion Matrix
-    cm = confusion_matrix(true_labels, predicted_labels)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
-    fig, ax = plt.subplots(figsize=(8, 8))
-    disp.plot(cmap=plt.cm.Blues, ax=ax)
-    plt.title("Confusion Matrix")
-    plt.savefig(save_path)
-    plt.close(fig)
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Classification Report
-    print("Classification Report:")
-    print(classification_report(true_labels, predicted_labels, target_names=label_encoder.classes_))
+def plot_learning_curves(train_losses, val_losses, train_accuracies, val_accuracies, pdf):
+    logging.info("Plotting learning curves...")
 
-    # F1 Score
-    f1 = f1_score(true_labels, predicted_labels, average='weighted')
-    print(f"F1 Score: {f1:.2f}")
-
-    # Precision-Recall Curve
-    precision, recall, _ = precision_recall_curve(true_labels, predicted_labels, pos_label=1)
-    pr_auc = auc(recall, precision)
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(recall, precision, label=f'PR curve (area = {pr_auc:.2f})')
-    ax.set_xlabel('Recall')
-    ax.set_ylabel('Precision')
-    ax.set_title('Precision-Recall Curve')
-    ax.legend(loc="lower right")
-    plt.savefig('precision_recall_curve.png')
-    plt.close(fig)
-
-def plot_learning_curves(train_losses, val_losses, train_accuracies, val_accuracies, save_path='learning_curves.png'):
     epochs = range(1, len(train_losses) + 1)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
@@ -59,55 +39,152 @@ def plot_learning_curves(train_losses, val_losses, train_accuracies, val_accurac
     ax2.set_ylabel('Accuracy')
     ax2.legend()
 
-    plt.savefig(save_path)
+    pdf.savefig(fig)
     plt.close(fig)
 
+def plot_confusion_matrix_summary(true_labels, predicted_labels, label_encoder, pdf, top_n_classes=20):
+    logging.info("Plotting confusion matrix summary...")
+
+    cm = confusion_matrix(true_labels, predicted_labels)
+    cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    
+    # Summarize confusion matrix by top N most confused classes
+    most_confused_pairs = np.dstack(np.unravel_index(np.argsort(-cm.ravel()), cm.shape))[0][:top_n_classes]
+
+    fig, ax = plt.subplots(figsize=(12, 10))
+    sns.heatmap(cm_normalized, annot=False, fmt=".2f", cmap='Blues', ax=ax)
+    for (i, j) in most_confused_pairs:
+        ax.text(j + 0.5, i + 0.5, f'{cm[i, j]}', ha='center', va='center', color='red')
+    ax.set_title(f'Confusion Matrix Summary (Top {top_n_classes} Confused Classes)')
+    ax.set_xlabel('Predicted Label')
+    ax.set_ylabel('True Label')
+
+    pdf.savefig(fig)
+    plt.close(fig)
+
+def plot_top_k_accuracies(true_labels, predicted_labels, model_logits, pdf, k_values=[1, 5, 10]):
+    logging.info("Plotting top-k accuracies...")
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    top_k_acc = []
+
+    for k in k_values:
+        acc = top_k_accuracy_score(true_labels, model_logits, k=k, labels=np.arange(len(np.unique(true_labels))))
+        top_k_acc.append(acc)
+        ax.bar(f'Top-{k}', acc * 100, color='skyblue')
+
+    ax.set_title('Top-K Accuracy')
+    ax.set_ylabel('Accuracy (%)')
+    ax.set_ylim(0, 100)
+
+    for i, v in enumerate(top_k_acc):
+        ax.text(i, v * 100 + 1, f"{v * 100:.2f}%", ha='center')
+
+    pdf.savefig(fig)
+    plt.close(fig)
+
+def plot_error_rate_distribution(true_labels, predicted_labels, pdf):
+    logging.info("Plotting error rate distribution...")
+
+    error_rates = 1 - np.diag(confusion_matrix(true_labels, predicted_labels)).astype(np.float) / np.bincount(true_labels)
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.bar(np.arange(len(error_rates)), error_rates, color='orange')
+    ax.set_title('Error Rate Distribution by Class')
+    ax.set_xlabel('Class')
+    ax.set_ylabel('Error Rate')
+
+    pdf.savefig(fig)
+    plt.close(fig)
+
+def plot_classwise_metrics(true_labels, predicted_labels, label_encoder, pdf):
+    logging.info("Plotting class-wise precision, recall, F1-score...")
+
+    precision, recall, f1, _ = precision_recall_fscore_support(true_labels, predicted_labels, average=None, zero_division=0)
+
+    fig, ax = plt.subplots(figsize=(15, 8))
+    ax.plot(np.arange(len(precision)), precision, label='Precision', color='blue')
+    ax.plot(np.arange(len(recall)), recall, label='Recall', color='green')
+    ax.plot(np.arange(len(f1)), f1, label='F1 Score', color='red')
+
+    ax.set_title('Class-wise Precision, Recall, F1-Score')
+    ax.set_xlabel('Class')
+    ax.set_ylabel('Score')
+    ax.legend()
+
+    pdf.savefig(fig)
+    plt.close(fig)
+
+def evaluate_model_in_batches(model, dataloader, device):
+    logging.info("Evaluating model in batches...")
+
+    model.eval()
+    all_predictions = []
+    all_true_labels = []
+    all_logits = []
+
+    with torch.no_grad():
+        for i, (inputs, labels) in enumerate(dataloader):
+            logging.info(f"Processing batch {i+1}/{len(dataloader)}")
+            inputs, labels = inputs.to(device), labels.to(device)
+            
+            outputs = model(inputs)
+            _, predicted = outputs.max(1)
+            
+            all_predictions.extend(predicted.cpu().numpy())
+            all_true_labels.extend(labels.cpu().numpy())
+            all_logits.extend(outputs.cpu().numpy())
+            
+            if i % 10 == 0:
+                torch.cuda.empty_cache()
+                gc.collect()
+
+    logging.info("Finished evaluation.")
+    return np.array(all_true_labels), np.array(all_predictions), np.array(all_logits)
+
 if __name__ == "__main__":
+    logging.info("Starting performance evaluation script...")
+
     # Load model and data
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # Initialize LabelEncoder to encode labels
     label_encoder = LabelEncoder()
 
-    # Load preprocessed signals and labels
+    logging.info("Loading preprocessed signals and labels...")
     signals, labels = torch.load('signals.pt')
     signals = signals.to(device)
     
-    # Encode labels
+    logging.info("Encoding labels...")
     encoded_labels = label_encoder.fit_transform(labels)
     encoded_labels = torch.tensor(encoded_labels, dtype=torch.long).to(device)
 
-    # Create dataset
+    logging.info("Creating dataset and dataloader...")
     dataset = TensorDataset(signals, encoded_labels)
-    dataloader = DataLoader(dataset, batch_size=16, shuffle=False)  # Reduced batch size
+    dataloader = DataLoader(dataset, batch_size=1024, shuffle=False)
 
-    # Determine number of classes
     num_classes = len(label_encoder.classes_)
+    logging.info(f"Number of classes: {num_classes}")
 
-    # Initialize model
+    logging.info("Initializing and loading the model...")
     model = ResNet18_1D(num_classes).to(device)
     model.load_state_dict(torch.load('spike_classifier_signals_resnet.pth'))
-    model.eval()
 
-    # Predict on the entire dataset
-    all_predictions = []
-    with torch.no_grad():
-        for inputs, labels in dataloader:
-            inputs = inputs.to(device)
-            outputs = model(inputs)
-            _, predicted = outputs.max(1)
-            all_predictions.extend(predicted.cpu().numpy())
-            torch.cuda.empty_cache()  # Clear CUDA cache periodically
+    logging.info("Evaluating the model...")
+    true_labels, predicted_labels, model_logits = evaluate_model_in_batches(model, dataloader, device)
 
-    all_predictions = np.array(all_predictions)
+    logging.info("Generating performance report...")
 
-    # Plot performance metrics
-    plot_performance_metrics(encoded_labels.cpu().numpy(), all_predictions, label_encoder)
+    with PdfPages('model_performance_report.pdf') as pdf:
+        plot_learning_curves(np.load('train_losses_signals_resnet.npy'),
+                             np.load('val_losses_signals_resnet.npy'),
+                             np.load('train_accuracies_signals_resnet.npy'),
+                             np.load('val_accuracies_signals_resnet.npy'),
+                             pdf)
 
-    # Load and plot learning curves
-    train_losses = np.load('train_losses_signals_resnet.npy')
-    val_losses = np.load('val_losses_signals_resnet.npy')
-    train_accuracies = np.load('train_accuracies_signals_resnet.npy')
-    val_accuracies = np.load('val_accuracies_signals_resnet.npy')
+        plot_confusion_matrix_summary(true_labels, predicted_labels, label_encoder, pdf, top_n_classes=20)
+        plot_top_k_accuracies(true_labels, predicted_labels, model_logits, pdf, k_values=[1, 5, 10])
+        plot_error_rate_distribution(true_labels, predicted_labels, pdf)
+        plot_classwise_metrics(true_labels, predicted_labels, label_encoder, pdf)
 
-    plot_learning_curves(train_losses, val_losses, train_accuracies, val_accuracies)
+    logging.info("Performance evaluation report saved as 'model_performance_report.pdf'.")
+
 
