@@ -15,14 +15,14 @@ Spike-based-Classifier-SC-/
 └── TrainingData/          # Directory for input spike waveform data
 ```
 
-📊 Features
+## 📊 Features
 - ✅ ResNet-inspired architecture for time-series classification
 - ✅ Handles multi-class imbalance
 - ✅ Visualizes training/validation accuracy and loss
 - ✅ Spike waveform preprocessing and normalization
 - ✅ Modular and extensible codebase
 
-🧪 Requirements
+## 🧪 Requirements
 ``` plaintext
 - Python 3.7+
 - PyTorch
@@ -35,7 +35,7 @@ pip install -r requirements.txt
 
 
 
-📁 Data Format
+## 📁 Data Format
 - Input data should be organized in subdirectories under TrainingData/, where each subdirectory represents a class label.
 - Each .txt file contains a single spike waveform (one sample per line).
 Example structure:
@@ -51,7 +51,7 @@ TrainingData/
 ```
 
 
-🚀 Getting Started
+## 🚀 Getting Started
 - Prepare your data in the format above.
 - Run the main script:
 ``` plaintext
@@ -64,12 +64,12 @@ This will:
 - Evaluate performance
 - Display accuracy/loss plots
 
-📈 Output
+## 📈 Output
 - Training and validation accuracy/loss curves
 - Spike classification performance per class
 - Label distribution and spike counts
 
-🧠 Model Architecture
+## 🧠 Model Architecture
 The model is inspired by ResNet, adapted for 1D time-series data:
 - 1D convolutional layers
 - Batch normalization
@@ -77,25 +77,25 @@ The model is inspired by ResNet, adapted for 1D time-series data:
 - Residual skip connections
 - Fully connected classification head
 
-📉 Handling Class Imbalance
+## 📉 Handling Class Imbalance
 The pipeline includes:
 - Label distribution checks
 - Spike count per class
 - Optional oversampling or class weighting (can be added)
 
 
-Overall Simple Process Pipeline-
+## Overall Simple Process Pipeline-
 ![image](https://github.com/user-attachments/assets/01933001-c017-4e07-9f22-0fa69c5a0184)
 
 
-ResNet Inspired Architecture for Time-Series Data-
+## ResNet Inspired Architecture for Time-Series Data-
 ![image](https://github.com/user-attachments/assets/aa059fd9-103e-474f-8cdc-5f89bfa42365)
 
 
-Dealing with multi-class calss imbalance- 
+## Dealing with multi-class calss imbalance- 
 ![image](https://github.com/user-attachments/assets/e631c55a-639a-4f53-b68c-5a9c7822cc74)
 
-Results-
+## Results-
 Training and Validation Accuracy-
 ![image](https://github.com/user-attachments/assets/8249a27b-4c3c-40ff-8362-777812c5871b)
 
@@ -105,7 +105,7 @@ Training and Validation Loss-
 Spikes Output-
 ![image](https://github.com/user-attachments/assets/b09f9cba-5911-4734-bfd2-988f42afefa2)
 
-📌 To Do
+## 📌 To Do
 - [ ] Add support for test-time augmentation
 - [ ] Integrate confusion matrix visualization
 - [ ] Export trained model for deployment
