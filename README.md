@@ -1,7 +1,7 @@
-🧠 # Spike-based Classifier SC
+🧠 Spike-based Classifier SC
 Spike-based classification using a ResNet-inspired deep learning architecture tailored for time-series neural spike data. This project addresses the challenge of multi-class classification in imbalanced datasets, leveraging deep residual learning to improve accuracy and robustness.
 
-📌 # Overview
+📌 Overview
 This repository implements a deep neural network for classifying neural spike waveforms. It adapts ResNet-style skip connections to handle the temporal dynamics of spike signals and includes preprocessing, training, and evaluation pipelines.
 
 🏗️ Project Structure
